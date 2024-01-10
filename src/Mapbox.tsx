@@ -78,7 +78,7 @@ const Mapbox: React.FC = () => {
       accessToken: import.meta.env.VITE_MAPBOX_TOKEN,
       container: mapContainer.current,
       style: `mapbox://styles/mapbox/${selectedLayer}`,
-      center: [0, 0],
+      center: [-122.48369693756104, 37.83381888486939],
       zoom: 16,
     });
 
@@ -200,3 +200,6 @@ const Mapbox: React.FC = () => {
 };
 
 export default Mapbox;
+
+
+
