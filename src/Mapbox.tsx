@@ -15,7 +15,6 @@ import {
 } from './components/ui/dropdown-menu';
 import { Square3Stack3DIcon } from '@heroicons/react/24/outline';
 
-
 const Mapbox: React.FC = () => {
   const [map, setMap] = useState<mapboxgl.Map | null>(null);
 
@@ -26,8 +25,8 @@ const Mapbox: React.FC = () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const mapContainer = useRef<any>(null);
 
-    const [allLayersVisible, setAllLayersVisible] = useState(true);
-    const [combinedLayerIds, setCombinedLayerIds] = useState<string[]>([]);
+  const [allLayersVisible, setAllLayersVisible] = useState(true);
+  const [combinedLayerIds, setCombinedLayerIds] = useState<string[]>([]);
 
   const layerOptions = [
     { value: 'mapbox/satellite-streets-v12', label: 'Satellite' },
@@ -62,34 +61,44 @@ const Mapbox: React.FC = () => {
     }
   };
 
-    const toggleAllLayers = () => {
-      const newVisibility = allLayersVisible ? 'none' : 'visible';
-      combinedLayerIds.forEach((id) => {
-        map?.setLayoutProperty(id, 'visibility', newVisibility);
-      });
-      setAllLayersVisible(!allLayersVisible);
-    };
-
+  const toggleAllLayers = () => {
+    const newVisibility = allLayersVisible ? 'none' : 'visible';
+    combinedLayerIds.forEach((id) => {
+      map?.setLayoutProperty(id, 'visibility', newVisibility);
+    });
+    setAllLayersVisible(!allLayersVisible);
+  };
 
   useEffect(() => {
     if (map) return;
+
+    const savedCenter = localStorage.getItem('mapCenter');
+    const savedZoom = localStorage.getItem('mapZoom');
+
+    const savedCenterArray = savedCenter ? JSON.parse(savedCenter) : [0, 0];
+    const savedZoomValue = savedZoom ? parseFloat(savedZoom) : 2;
 
     const mapboxMap = new mapboxgl.Map({
       accessToken: import.meta.env.VITE_MAPBOX_TOKEN,
       container: mapContainer.current,
       style: `mapbox://styles/mapbox/${selectedLayer}`,
-      center: [-122.48369693756104, 37.83381888486939],
-      zoom: 16,
+      center: savedCenterArray,
+      zoom: savedZoomValue,
     });
 
+    mapboxMap.on('moveend', () => {
+      const { lng, lat } = mapboxMap.getCenter();
+      const zoom = mapboxMap.getZoom();
+
+      localStorage.setItem('mapCenter', JSON.stringify([lng, lat]));
+      localStorage.setItem('mapZoom', zoom.toString());
+    });
 
     setMap(mapboxMap);
-
-
   }, [map, selectedLayer]);
 
   useEffect(() => {
-      if (!map) return;
+    if (!map) return;
 
     function loadData() {
       console.log('function called');
@@ -149,6 +158,62 @@ const Mapbox: React.FC = () => {
       }
     }
 
+    map.on('load', () => {
+      // Add an image to use as a custom marker
+      map.loadImage(
+        'https://docs.mapbox.com/mapbox-gl-js/assets/custom_marker.png',
+        (error, image) => {
+          if (error) throw error;
+          map.addImage('custom-marker', image as HTMLImageElement);
+          // Add a GeoJSON source with 2 points
+          map.addSource('points', {
+            type: 'geojson',
+            data: {
+              type: 'FeatureCollection',
+              features: [
+                {
+                  // feature for Mapbox DC
+                  type: 'Feature',
+                  geometry: {
+                    type: 'Point',
+                    coordinates: [-77.03238901390978, 38.913188059745586],
+                  },
+                  properties: {
+                    title: 'Mapbox DC',
+                  },
+                },
+                {
+                  // feature for Mapbox SF
+                  type: 'Feature',
+                  geometry: {
+                    type: 'Point',
+                    coordinates: [-122.414, 37.776],
+                  },
+                  properties: {
+                    title: 'Mapbox SF',
+                  },
+                },
+              ],
+            },
+          });
+
+          // Add a symbol layer
+          map.addLayer({
+            id: 'points',
+            type: 'symbol',
+            source: 'points',
+            layout: {
+              'icon-image': 'custom-marker',
+              // get the title name from the source's "title" property
+              'text-field': ['get', 'title'],
+              'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
+              'text-offset': [0, 1.25],
+              'text-anchor': 'top',
+            },
+          });
+        }
+      );
+    });
 
     map?.on('style.load', () => {
       loadData();
@@ -157,7 +222,10 @@ const Mapbox: React.FC = () => {
 
   return (
     <>
-      <div className='h-screen w-full relative flex flex-col' ref={mapContainer}>
+      <div
+        className='h-screen w-full relative flex flex-col'
+        ref={mapContainer}
+      >
         <DropdownMenu>
           <DropdownMenuTrigger className='w-8 h-8 border-none absolute top-0 right-0 z-10 rounded-lg mt-2 mr-2 p-2 bg-white'>
             <Square3Stack3DIcon className=' h-full w-full text-black ' />
@@ -200,6 +268,3 @@ const Mapbox: React.FC = () => {
 };
 
 export default Mapbox;
-
-
-
