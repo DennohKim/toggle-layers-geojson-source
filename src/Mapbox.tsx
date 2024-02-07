@@ -17,16 +17,25 @@ import { Square3Stack3DIcon } from '@heroicons/react/24/outline';
 
 const Mapbox: React.FC = () => {
   const [map, setMap] = useState<mapboxgl.Map | null>(null);
-
   const [selectedLayer, setSelectedLayer] = useState<string>(
     'satellite-streets-v12'
   );
-
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const mapContainer = useRef<any>(null);
-
   const [allLayersVisible, setAllLayersVisible] = useState(true);
+  const allLayersVisibleRef = useRef(allLayersVisible);
   const [combinedLayerIds, setCombinedLayerIds] = useState<string[]>([]);
+
+  const [layerVisibility, setLayerVisibility] = useState<{
+    [key: string]: boolean;
+  }>({
+    routeLayer: true, // Assuming the initial visibility is true for all layers
+    // Add other layers if needed
+  });
+
+  useEffect(() => {
+    allLayersVisibleRef.current = allLayersVisible;
+  }, [allLayersVisible]);
 
   const layerOptions = [
     { value: 'mapbox/satellite-streets-v12', label: 'Satellite' },
@@ -47,26 +56,31 @@ const Mapbox: React.FC = () => {
       value === 'mapbox/navigation-day-v1'
     ) {
       map?.setStyle(`mapbox://styles/${value}`);
-      // Check if 'unclustered-point' layer is included in the new style
       setSelectedLayer(value);
     } else {
-      const visibility = map?.getLayoutProperty(value, 'visibility');
-      console.log(`Visibility of layer ${value}: ${visibility}`);
-
-      if (visibility === 'visible') {
-        map?.setLayoutProperty(value, 'visibility', 'none');
-      } else {
-        map?.setLayoutProperty(value, 'visibility', 'visible');
-      }
+      toggleLayerVisibility(value);
     }
   };
 
-  const toggleAllLayers = () => {
-    const newVisibility = allLayersVisible ? 'none' : 'visible';
-    combinedLayerIds.forEach((id) => {
-      map?.setLayoutProperty(id, 'visibility', newVisibility);
+  const toggleLayerVisibility = (layerId: string) => {
+    setLayerVisibility((prevState) => ({
+      ...prevState,
+      [layerId]: !prevState[layerId],
+    }));
+  };
+
+  const setAllLayersVisibility = (visibility: boolean) => {
+    const updatedVisibility: { [key: string]: boolean } = {};
+    Object.keys(layerVisibility).forEach((layerId) => {
+      updatedVisibility[layerId] = visibility;
     });
-    setAllLayersVisible(!allLayersVisible);
+    setLayerVisibility(updatedVisibility);
+  };
+
+  const toggleAllLayers = () => {
+    const newVisibility = !allLayersVisibleRef.current;
+    setAllLayersVisibility(newVisibility);
+    setAllLayersVisible(newVisibility);
   };
 
   useEffect(() => {
@@ -158,67 +172,22 @@ const Mapbox: React.FC = () => {
       }
     }
 
-    map.on('load', () => {
-      // Add an image to use as a custom marker
-      map.loadImage(
-        'https://docs.mapbox.com/mapbox-gl-js/assets/custom_marker.png',
-        (error, image) => {
-          if (error) throw error;
-          map.addImage('custom-marker', image as HTMLImageElement);
-          // Add a GeoJSON source with 2 points
-          map.addSource('points', {
-            type: 'geojson',
-            data: {
-              type: 'FeatureCollection',
-              features: [
-                {
-                  // feature for Mapbox DC
-                  type: 'Feature',
-                  geometry: {
-                    type: 'Point',
-                    coordinates: [-77.03238901390978, 38.913188059745586],
-                  },
-                  properties: {
-                    title: 'Mapbox DC',
-                  },
-                },
-                {
-                  // feature for Mapbox SF
-                  type: 'Feature',
-                  geometry: {
-                    type: 'Point',
-                    coordinates: [-122.414, 37.776],
-                  },
-                  properties: {
-                    title: 'Mapbox SF',
-                  },
-                },
-              ],
-            },
-          });
-
-          // Add a symbol layer
-          map.addLayer({
-            id: 'points',
-            type: 'symbol',
-            source: 'points',
-            layout: {
-              'icon-image': 'custom-marker',
-              // get the title name from the source's "title" property
-              'text-field': ['get', 'title'],
-              'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
-              'text-offset': [0, 1.25],
-              'text-anchor': 'top',
-            },
-          });
-        }
-      );
-    });
-
     map?.on('style.load', () => {
       loadData();
     });
   }, [map]);
+
+  useEffect(() => {
+    if (!map) return;
+
+    combinedLayerIds.forEach((id) => {
+      map.setLayoutProperty(
+        id,
+        'visibility',
+        layerVisibility[id] ? 'visible' : 'none'
+      );
+    });
+  }, [map, layerVisibility, combinedLayerIds]);
 
   return (
     <>
